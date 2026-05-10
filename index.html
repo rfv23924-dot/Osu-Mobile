@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, orientation=landscape">
+    <title>osu! Mobile - Rhythmic Pro v4</title>
+    <style>
+        :root { --osu-pink: #ff66aa; }
+        body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; height: 100vh; width: 100vw; display: flex; align-items: center; justify-content: center; }
+        #ui { 
+            position: absolute; z-index: 100; padding: 20px; background: rgba(10, 10, 20, 0.95); 
+            border-radius: 20px; border: 2px solid var(--osu-pink); text-align: center; width: 90%; max-width: 750px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-height: 90vh; overflow-y: auto;
+        }
+        h1 { grid-column: span 2; color: var(--osu-pink); text-shadow: 0 0 10px var(--osu-pink); font-size: 22px; margin: 0; }
+        .section { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid #333; }
+        h3 { font-size: 13px; margin: 0 0 10px 0; color: var(--osu-pink); }
+        .playlist-scroll { height: 150px; overflow-y: auto; background: #000; border-radius: 8px; padding: 5px; }
+        .playlist-item { padding: 10px; margin: 5px 0; background: #1a1a1a; border-radius: 6px; font-size: 12px; cursor: pointer; border-left: 4px solid transparent; text-align: left; }
+        .playlist-item.active { background: #331a25; border-left-color: var(--osu-pink); }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: none; font-size: 14px; background: #111; color: white; border: 1px solid #444; box-sizing: border-box;}
+        button.start-btn { grid-column: span 2; background: var(--osu-pink); color: white; font-weight: bold; font-size: 20px; cursor: pointer; border: none; margin-top: 10px; }
+        #gameContainer { position: relative; width: 100vw; height: 100vh; display: none; }
+        #bgLayer { position: absolute; width: 100%; height: 100%; background-size: cover; background-position: center; filter: brightness(0.4); z-index: 1; transition: 0.5s; }
+        #gameCanvas { position: absolute; top: 0; left: 0; z-index: 2; width: 100%; height: 100%; }
+        #scoreBoard { position: absolute; top: 20px; right: 30px; font-size: 32px; color: white; z-index: 3; font-weight: bold; text-shadow: 2px 2px 10px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <h1>Guguguwawawaeawa Beatmap Pro</h1>
+
+    <div class="section">
+        <h3>1. Beatmap Seç</h3>
+        <div class="playlist-scroll" id="appleList">
+            <div class="playlist-item" onclick="setMap('Silhouette', 8, 'dlFA0Zq1k2g')">🎵 Silhouette (8⭐)</div>
+            <div class="playlist-item" onclick="setMap('Kaikai Kitan', 9, 'v8bZVdTgXoY')">🎵 Kaikai Kitan (9⭐)</div>
+            <div class="playlist-item" onclick="setMap('SPECIALZ', 10, 'fhzKLBZJC3w')">🎵 SPECIALZ (10⭐)</div>
+            <div class="playlist-item" onclick="setMap('Core Pride', 7, '1X9N_o73AIs')">🎵 Core Pride (7⭐)</div>
+        </div>
+        <input type="text" id="customBG" placeholder="Özel Arka Plan (YT Link)">
+    </div>
+
+    <div class="section">
+        <h3>2. Ses & Zorluk</h3>
+        <select id="audioSource" onchange="toggleSource()">
+            <option value="mp3">MP3 Dosyası</option>
+            <option value="sc">SoundCloud</option>
+        </select>
+        <input type="file" id="musicUpload" accept="audio/*">
+        <input type="text" id="scInput" placeholder="SoundCloud Linki" style="display:none;">
+        
+        <select id="manualDiff">
+            <option value="0">Şarkı Zorluğunu Kullan</option>
+            <option value="1">⭐ 1 Yıldız</option>
+            <option value="2">⭐⭐ 2</option>
+            <option value="3">⭐⭐⭐ 3</option>
+            <option value="4">⭐⭐⭐⭐ 4</option>
+            <option value="5">⭐⭐⭐⭐⭐ 5</option>
+            <option value="6">⭐⭐⭐⭐⭐⭐ 6</option>
+            <option value="7">⭐⭐⭐⭐⭐⭐⭐ 7</option>
+            <option value="8">⭐⭐⭐⭐⭐⭐⭐⭐ 8</option>
+            <option value="9">⭐⭐⭐⭐⭐⭐⭐⭐⭐ 9</option>
+            <option value="10">🔥 10 YILDIZ (GOD)</option>
+        </select>
+    </div>
+
+    <button class="start-btn" onclick="startGame()">SİSTEMİ BAŞLAT</button>
+</div>
+
+<div id="scPlayer" style="position:absolute; visibility:hidden;"></div>
+
+<div id="gameContainer">
+    <div id="bgLayer"></div>
+    <div id="scoreBoard">COMBO: <span id="combo">0</span></div>
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const bgLayer = document.getElementById('bgLayer');
+    const comboEl = document.getElementById('combo');
+    
+    let circles = [];
+    let difficulty = 5;
+    let combo = 0;
+    let gameActive = false;
+    let lastTime = 0;
+    let spawnTimer = 0;
+    let audio = new Audio();
+    let selectedMap = { diff: 5 };
+
+    function toggleSource() {
+        const source = document.getElementById('audioSource').value;
+        document.getElementById('musicUpload').style.display = source === 'mp3' ? 'block' : 'none';
+        document.getElementById('scInput').style.display = source === 'sc' ? 'block' : 'none';
+    }
+
+    function setMap(name, diff, ytId) {
+        selectedMap = { diff, bg: `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg` };
+        document.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        bgLayer.style.backgroundImage = `url('${selectedMap.bg}')`;
+    }
+
+    function startGame() {
+        const source = document.getElementById('audioSource').value;
+        const mp3File = document.getElementById('musicUpload').files[0];
+        const scUrl = document.getElementById('scInput').value;
+        const customBG = document.getElementById('customBG').value;
+
+        if(customBG) {
+            let vid = customBG.includes("v=") ? customBG.split("v=")[1].split("&")[0] : customBG.split("be/")[1];
+            if(vid) bgLayer.style.backgroundImage = `url('https://i.ytimg.com/vi/${vid}/maxresdefault.jpg')`;
+        }
+
+        difficulty = parseInt(document.getElementById('manualDiff').value) || selectedMap.diff;
+
+        if (source === 'mp3' && mp3File) {
+            audio.src = URL.createObjectURL(mp3File);
+            audio.play();
+        } else if (source === 'sc' && scUrl) {
+            document.getElementById('scPlayer').innerHTML = `<iframe width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=${encodeURIComponent(scUrl)}&auto_play=true"></iframe>`;
+        } else {
+            alert("Müzik kaynağı seçmelisin!"); return;
+        }
+
+        document.getElementById('ui').style.display = 'none';
+        document.getElementById('gameContainer').style.display = 'block';
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gameActive = true;
+        requestAnimationFrame(gameLoop);
+    }
+
+    function createCircle() {
+        const r = 60 - (difficulty * 2.5);
+        const x = Math.random() * (canvas.width - r*2) + r;
+        const y = Math.random() * (canvas.height - r*2) + r;
+        circles.push({ x, y, r, approach: 2.5 });
+    }
+
+    function gameLoop(time) {
+        if(!gameActive) return;
+        const dt = time - lastTime;
+        lastTime = time;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        spawnTimer += dt;
+        const spawnInterval = 1000 / (difficulty * 0.8 + 1);
+        if(spawnTimer >= spawnInterval) {
+            createCircle();
+            spawnTimer = 0;
+        }
+
+        circles.forEach((c, i) => {
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, c.r * c.approach, 0, Math.PI*2);
+            ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+            ctx.fillStyle = "#ff66aa"; ctx.fill();
+            ctx.strokeStyle = "white"; ctx.lineWidth = 4; ctx.stroke();
+
+            c.approach -= 0.0015 * dt * (difficulty * 0.2);
+            if(c.approach <= 1) { circles.splice(i,1); combo = 0; comboEl.innerText = combo; }
+        });
+        requestAnimationFrame(gameLoop);
+    }
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        circles.forEach((c, i) => {
+            if(Math.hypot(c.x - t.clientX, c.y - t.clientY) < c.r * 1.8) {
+                circles.splice(i,1); combo++; comboEl.innerText = combo;
+            }
+        });
+    });
+</script>
+</body>
+</html>
