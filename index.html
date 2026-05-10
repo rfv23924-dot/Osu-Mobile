@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, orientation=landscape">
+    <title>osu! Mobile - V15 GOAT Edition</title>
+    <style>
+        :root { --osu-pink: #ff66aa; --osu-blue: #00e5ff; }
+        body { margin: 0; background: #000; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; touch-action: none; height: 100vh; }
+        
+        #ui, #resultScreen { 
+            position: absolute; z-index: 100; padding: 25px; background: rgba(10, 10, 25, 0.98); 
+            border-radius: 30px; border: 4px solid var(--osu-pink); text-align: center;
+            top: 50%; left: 50%; transform: translate(-50%, -50%); width: 92%; max-width: 850px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; box-shadow: 0 0 50px rgba(255, 102, 170, 0.6);
+        }
+        #resultScreen { display: none; grid-template-columns: 1fr; }
+        
+        .section { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 18px; border: 1px solid #444; }
+        h3 { font-size: 13px; margin: 0 0 10px 0; color: var(--osu-blue); text-align: left; text-transform: uppercase; letter-spacing: 1px; }
+
+        input, select, button { width: 100%; padding: 12px; margin: 5px 0; border-radius: 12px; border: 1px solid #555; background: #111; color: white; font-weight: bold; font-size: 14px; }
+        button.start-btn { grid-column: span 2; background: var(--osu-pink); font-size: 26px; border: none; cursor: pointer; margin-top: 10px; box-shadow: 0 5px 15px rgba(255, 102, 170, 0.4); }
+
+        #gameContainer { position: relative; width: 100vw; height: 100vh; display: none; }
+        #bgLayer { position: absolute; width: 100%; height: 100%; background-size: cover; background-position: center; filter: brightness(0.25) blur(4px); z-index: 1; }
+        #gameCanvas { position: absolute; top: 0; left: 0; z-index: 2; width: 100%; height: 100%; }
+        
+        #hud { position: absolute; top: 0; left: 0; width: 100%; padding: 15px 40px; box-sizing: border-box; z-index: 10; pointer-events: none; }
+        #healthContainer { width: 100%; height: 20px; background: rgba(0,0,0,0.6); border-radius: 10px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2); margin-bottom: 10px; }
+        #healthBar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0055, var(--osu-pink), #ffffff); box-shadow: 0 0 20px var(--osu-pink); transition: 0.1s linear; }
+        
+        .combo-text { font-size: 45px; font-weight: 900; text-shadow: 0 0 15px rgba(0,0,0,1); }
+        .grade-display { font-size: 130px; font-weight: 900; margin: 10px 0; text-shadow: 0 0 40px var(--osu-pink); }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <h1 style="grid-column: span 2; color: var(--osu-pink); margin: 0; font-size: 32px; text-shadow: 0 0 20px var(--osu-pink);">V15 GOAT EDITION</h1>
+    
+    <div class="section">
+        <h3>1. ŞARKI VE ARKA PLAN</h3>
+        <select id="mapSelect">
+            <option value="8|dlFA0Zq1k2g">Silhouette (8⭐)</option>
+            <option value="9|v8bZVdTgXoY">Kaikai Kitan (9⭐)</option>
+            <option value="10|fhzKLBZJC3w">SPECIALZ (10⭐)</option>
+        </select>
+        <input type="text" id="customBG" placeholder="YouTube Arkaplan Link (Opsiyonel)">
+    </div>
+
+    <div class="section">
+        <h3>2. ZORLUK VE SES</h3>
+        <select id="audioSource" onchange="toggleSource()">
+            <option value="mp3">Cihazdan MP3 Yükle</option>
+            <option value="sc">SoundCloud URL Yapıştır</option>
+        </select>
+        <input type="file" id="musicUpload" accept="audio/*">
+        <input type="text" id="scInput" placeholder="https://soundcloud.com/..." style="display:none;">
+        
+        <select id="manualDiff">
+            <option value="1">⭐ 1 Yıldız (Çerez)</option>
+            <option value="2">⭐⭐ 2 Yıldız</option>
+            <option value="3">⭐⭐⭐ 3 Yıldız</option>
+            <option value="4">⭐⭐⭐⭐ 4 Yıldız</option>
+            <option value="5" selected>⭐⭐⭐⭐⭐ 5 Yıldız (Normal)</option>
+            <option value="6">⭐⭐⭐⭐⭐⭐ 6 Yıldız</option>
+            <option value="7">⭐⭐⭐⭐⭐⭐⭐ 7 Yıldız</option>
+            <option value="8">⭐⭐⭐⭐⭐⭐⭐⭐ 8 Yıldız</option>
+            <option value="9">⭐⭐⭐⭐⭐⭐⭐⭐⭐ 9 Yıldız</option>
+            <option value="10">🔥🔥 10 YILDIZ (GOD MODE)</option>
+        </select>
+    </div>
+
+    <button class="start-btn" onclick="startGame()">SİSTEMİ BAŞLAT</button>
+</div>
+
+<div id="resultScreen">
+    <h2 id="resStatus" style="font-size: 30px; color: var(--osu-blue);">SKOR TABLOSU</h2>
+    <span id="finalGrade" class="grade-display">A</span>
+    <div id="stats" style="font-size: 24px;">Maksimum Kombo: <span id="resCombo" style="color:var(--osu-pink)">0</span></div>
+    <button onclick="location.reload()" style="background:var(--osu-pink); font-size: 20px;">MENÜYE DÖN</button>
+</div>
+
+<div id="gameContainer">
+    <div id="bgLayer"></div>
+    <div id="hud">
+        <div id="healthContainer"><div id="healthBar"></div></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div onclick="location.reload()" style="pointer-events:auto; cursor:pointer; background:rgba(255,255,255,0.2); padding:10px 25px; border-radius:20px; font-weight:bold; border: 1px solid white;">MENÜ</div>
+            <div class="combo-text"><span id="combo">0</span>x</div>
+        </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<div id="scPlayer" style="position:fixed; bottom:-500px; opacity:0;"></div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const comboEl = document.getElementById('combo');
+    const healthBar = document.getElementById('healthBar');
+    
+    let circles = [], effects = [], hitTexts = [], difficulty = 5, combo = 0, maxCombo = 0;
+    let gameActive = false, lastTime = 0, spawnTimer = 0, health = 100, audio = new Audio();
+    let drainStarted = false; 
+
+    function toggleSource() {
+        const source = document.getElementById('audioSource').value;
+        document.getElementById('musicUpload').style.display = source === 'mp3' ? 'block' : 'none';
+        document.getElementById('scInput').style.display = source === 'sc' ? 'block' : 'none';
+    }
+
+    function startGame() {
+        const source = document.getElementById('audioSource').value;
+        if (source === 'mp3' && document.getElementById('musicUpload').files[0]) {
+            audio.src = URL.createObjectURL(document.getElementById('musicUpload').files[0]);
+            audio.play();
+        } else if (source === 'sc') {
+            const url = document.getElementById('scInput').value;
+            document.getElementById('scPlayer').innerHTML = `<iframe width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&auto_play=true"></iframe>`;
+        } else { alert("Önce müziği seç reis!"); return; }
+
+        difficulty = parseInt(document.getElementById('manualDiff').value);
+        let mapData = document.getElementById('mapSelect').value.split('|');
+        let bgUrl = `https://i.ytimg.com/vi/${mapData[1]}/maxresdefault.jpg`;
+        if(document.getElementById('customBG').value) {
+            let vid = document.getElementById('customBG').value.split('v=')[1];
+            if(vid) bgUrl = `https://i.ytimg.com/vi/${vid}/maxresdefault.jpg`;
+        }
+
+        document.getElementById('bgLayer').style.backgroundImage = `url('${bgUrl}')`;
+        document.getElementById('ui').style.display = 'none';
+        document.getElementById('gameContainer').style.display = 'block';
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        gameActive = true; health = 100; drainStarted = false;
+        audio.onended = () => endGame("TAMAMLANDI");
+        requestAnimationFrame(gameLoop);
+    }
+
+    function showHitText(x, y, text, color) {
+        hitTexts.push({ x, y, text, color, alpha: 1, yOff: 0 });
+    }
+
+    function endGame(status) {
+        gameActive = false;
+        document.getElementById('gameContainer').style.display = 'none';
+        document.getElementById('resultScreen').style.display = 'grid';
+        document.getElementById('resStatus').innerText = status;
+        
+        let grade = "F"; 
+        if(health > 0) {
+            if(maxCombo >= 200) grade = "SS"; 
+            else if(maxCombo >= 100) grade = "S"; 
+            else if(maxCombo >= 50) grade = "A"; 
+            else grade = "B";
+        }
+        
+        const gradeEl = document.getElementById('finalGrade');
+        gradeEl.innerText = grade;
+        gradeEl.className = "grade-display " + grade.toLowerCase();
+        document.getElementById('resCombo').innerText = maxCombo;
+    }
+
+    function gameLoop(time) {
+        if(!gameActive) return;
+        const dt = time - lastTime; lastTime = time;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (drainStarted) {
+            health -= 0.0045 * dt * (difficulty * 0.4);
+            healthBar.style.width = health + "%";
+            if(health <= 0) { audio.pause(); endGame("BAŞARISIZ (FAILED)"); }
+        }
+
+        spawnTimer += dt;
+        if(spawnTimer >= 1000 / (difficulty * 0.85 + 1)) {
+            const r = 62 - (difficulty * 2.2);
+            circles.push({ x: Math.random()*(canvas.width-r*2)+r, y: Math.random()*(canvas.height-r*2)+r, r, approach: 2.8 });
+            spawnTimer = 0;
+        }
+
+        circles.forEach((c, i) => {
+            ctx.beginPath(); ctx.arc(c.x, c.y, c.r * c.approach, 0, Math.PI*2);
+            ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 3; ctx.stroke();
+            ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+            ctx.fillStyle = "#ff66aa"; ctx.fill();
+            ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.stroke();
+            
+            c.approach -= 0.0022 * dt * (difficulty * 0.2);
+            if(c.approach <= 1) { 
+                showHitText(c.x, c.y, "MISS", "#ff4444");
+                circles.splice(i,1); combo = 0; comboEl.innerText = combo; health -= 12;
+                drainStarted = true;
+            }
+        });
+
+        hitTexts.forEach((ht, i) => {
+            ctx.fillStyle = ht.color; ctx.font = "bold 35px Arial"; ctx.textAlign = "center";
+            ctx.globalAlpha = ht.alpha; ctx.fillText(ht.text, ht.x, ht.y - ht.yOff); ctx.globalAlpha = 1;
+            ht.yOff += 1.5; ht.alpha -= 0.04;
+            if(ht.alpha <= 0) hitTexts.splice(i, 1);
+        });
+
+        effects.forEach((e, i) => {
+            ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2);
+            ctx.strokeStyle = `rgba(255,255,255,${e.a})`; ctx.lineWidth = 3; ctx.stroke();
+            e.r += 3; e.a -= 0.06;
+            if(e.a <= 0) effects.splice(i,1);
+        });
+        requestAnimationFrame(gameLoop);
+    }
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        circles.forEach((c, i) => {
+            const d = Math.hypot(c.x - t.clientX, c.y - t.clientY);
+            if(d < c.r * 1.8) {
+                drainStarted = true; 
+                let msg = "PERFECT"; let color = "#fff";
+                if(c.approach > 1.4) { msg = "GOOD"; color = "#66ff66"; health += 4; }
+                else if(c.approach > 1.15) { msg = "PERFECT"; color = "#fff"; health += 7; }
+                else { msg = "MEH"; color = "#ffcc00"; health += 2; }
+                
+                showHitText(c.x, c.y, msg, color);
+                effects.push({ x: c.x, y: c.y, r: c.r, a: 1 });
+                circles.splice(i,1); combo++; if(combo > maxCombo) maxCombo = combo;
+                comboEl.innerText = combo; health = Math.min(100, health);
+            }
+        });
+    });
+</script>
+</body>
+</html>
